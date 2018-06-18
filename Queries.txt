@@ -1,0 +1,98 @@
+-- 1) Quais países mais gastam?
+
+SELECT
+  Country,
+  REPLACE(TotalSpent, ".", ",") AS TotalSpent
+FROM (SELECT
+  c.Country,
+  SUM(i.total) AS TotalSpent
+FROM Customer c
+JOIN Invoice i
+  ON c.CustomerId = i.CustomerId
+GROUP BY 1
+ORDER BY 2 DESC) sub
+
+-- 2) Quais os gêneros mais rentáveis?
+
+SELECT
+  genre,
+  REPLACE(printf("%.2f", TotalSells), ".", ",") TotalSells
+FROM (SELECT
+  g.Name Genre,
+  SUM(l.UnitPrice) TotalSells
+FROM Genre g
+JOIN Track t
+  ON g.GenreId = t.GenreId
+JOIN InvoiceLine l
+  ON t.TrackId = l.TrackId
+GROUP BY 1
+ORDER BY 2 DESC) sub
+
+-- 3) Quais gêneros vendem acima da média de pedidos em cada país?
+
+WITH genre_purchases
+AS (SELECT
+  c.Country,
+  g.Name AS Genre,
+  COUNT(*) AS Purchases
+FROM Customer c
+JOIN Invoice i
+  ON i.CustomerId = c.CustomerId
+JOIN InvoiceLine l
+  ON i.InvoiceId = l.InvoiceId
+JOIN Track t
+  ON l.TrackId = t.TrackId
+JOIN Genre g
+  ON g.GenreId = t.GenreId
+GROUP BY 1,
+         2),
+country_averages
+AS (SELECT
+  Country,
+  AVG(Purchases) AS Purchases
+FROM genre_purchases
+GROUP BY 1)
+
+SELECT
+  p.*,
+  REPLACE(printf("%.2f", a.Purchases), ".", ",") Average
+FROM genre_purchases p
+JOIN country_averages a
+  ON p.Country = a.Country
+  AND p.Purchases > a.Purchases
+ORDER BY 1, 3 DESC, 2
+
+-- 4) Quais artistas vendem mais músicas por país?
+
+WITH top_artists
+AS (SELECT
+  c.Country,
+  art.Name AS Artist,
+  COUNT(l.InvoiceId) AS Purchases
+FROM Customer c
+JOIN Invoice i
+  ON i.CustomerId = c.CustomerId
+JOIN InvoiceLine l
+  ON i.InvoiceId = l.InvoiceId
+JOIN Track t
+  ON l.TrackId = t.TrackId
+JOIN Album alb
+  ON alb.AlbumId = t.AlbumId
+JOIN Artist art
+  ON alb.ArtistId = art.ArtistId
+GROUP BY 1,
+         2),
+top_most_artist
+AS (SELECT
+  Country,
+  MAX(Purchases) AS Purchases
+FROM top_artists
+GROUP BY 1)
+
+SELECT
+  ta.*
+FROM top_artists ta
+JOIN top_most_artist tm
+  ON ta.Country = tm.Country
+  AND ta.Purchases = tm.Purchases
+ORDER BY 1, 2
